@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teachable Machine Image Recognition</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px 32px;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #webcam-container {
+            margin: 20px auto;
+        }
+        #webcam-container canvas {
+            border: 3px solid #4CAF50;
+            border-radius: 10px;
+        }
+        #label-container {
+            margin-top: 20px;
+        }
+        #label-container div {
+            background-color: #f0f0f0;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            font-size: 18px;
+        }
+        .highest {
+            background-color: #4CAF50 !important;
+            color: white;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Teachable Machine Image Model</h1>
+    <p>Klik tombol Start untuk memulai deteksi gambar menggunakan webcam</p>
+    
+    <button type="button" onclick="init()">Start Webcam</button>
+    <button type="button" onclick="stop()" style="background-color: #f44336;">Stop Webcam</button>
+    
+    <div id="webcam-container"></div>
+    <div id="label-container"></div>
+
+    <!-- Load TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <!-- Load Teachable Machine Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    
+    <script type="text/javascript">
+        // URL ke model Teachable Machine (ganti dengan URL model Anda)
+        const URL = "./my_model/";
+        
+        let model, webcam, labelContainer, maxPredictions;
+        let isRunning = false;
+
+        // Fungsi untuk load model dan setup webcam
+        async function init() {
+            if (isRunning) return; // Cegah inisialisasi ganda
+            
+            try {
+                const modelURL = URL + "model.json";
+                const metadataURL = URL + "metadata.json";
+
+                // Load model dan metadata
+                console.log("Loading model...");
+                model = await tmImage.load(modelURL, metadataURL);
+                maxPredictions = model.getTotalClasses();
+                console.log("Model loaded successfully!");
+
+                // Setup webcam
+                const flip = true; // Mirror webcam
+                webcam = new tmImage.Webcam(320, 320, flip); // width, height, flip
+                await webcam.setup(); // Minta akses webcam
+                await webcam.play();
+                isRunning = true;
+                
+                // Mulai loop prediksi
+                window.requestAnimationFrame(loop);
+
+                // Tambahkan canvas webcam ke DOM
+                document.getElementById("webcam-container").innerHTML = "";
+                document.getElementById("webcam-container").appendChild(webcam.canvas);
+                
+                // Buat container untuk label prediksi
+                labelContainer = document.getElementById("label-container");
+                labelContainer.innerHTML = "";
+                for (let i = 0; i < maxPredictions; i++) {
+                    labelContainer.appendChild(document.createElement("div"));
+                }
+                
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Error loading model. Pastikan folder my_model/ ada dan berisi model.json & metadata.json");
+            }
+        }
+
+        // Loop untuk update webcam dan prediksi
+        async function loop() {
+            if (!isRunning) return;
+            webcam.update(); // Update frame webcam
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        // Fungsi prediksi
+        async function predict() {
+            const prediction = await model.predict(webcam.canvas);
+            
+            // Cari prediksi tertinggi
+            let maxProb = 0;
+            let maxIndex = 0;
+            
+            for (let i = 0; i < maxPredictions; i++) {
+                const probability = prediction[i].probability;
+                const className = prediction[i].className;
+                
+                // Format tampilan: Nama Class: 95%
+                const percentage = (probability * 100).toFixed(1);
+                const classPrediction = className + ": " + percentage + "%";
+                
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+                
+                // Highlight prediksi tertinggi
+                if (probability > maxProb) {
+                    maxProb = probability;
+                    maxIndex = i;
+                }
+                
+                // Reset styling
+                labelContainer.childNodes[i].classList.remove("highest");
+            }
+            
+            // Tambahkan highlight ke prediksi tertinggi
+            labelContainer.childNodes[maxIndex].classList.add("highest");
+        }
+
+        // Fungsi untuk stop webcam
+        function stop() {
+            if (webcam) {
+                webcam.stop();
+                isRunning = false;
+                document.getElementById("webcam-container").innerHTML = "";
+                document.getElementById("label-container").innerHTML = "<p>Webcam dihentikan</p>";
+            }
+        }
+    </script>
+</body>
+</html>
